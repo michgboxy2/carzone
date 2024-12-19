@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .  # Specify the build context as a string pointing to the app directory
+      dockerfile: Dockerfile 
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgress
+      DB_PASSWORD: password
+      DB_NAME: postgress
+      JAEGER_AGENT_HOST: jaeger
+      JAEGER_AGENT_PORT: 4318
+    depends_on:
+      - db
+      - jaeger
+      - prometheus
+  
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: postgress
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgress
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgress-data:/var/lib/postgresql/data
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports: 
+      - "6831:6831/udp"
+      - "4318:4318"
+      - "14268:14268"
+      - "16686:16686"
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+
+volumes:
+  postgress-data:
+  grafana-data:
+
+
+  
