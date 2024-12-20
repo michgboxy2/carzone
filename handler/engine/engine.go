@@ -35,6 +35,7 @@ func (e *EngineHandler) GetEngineById(w http.ResponseWriter, r *http.Request) {
 	resp, err := e.service.GetEngineById(ctx, id)
 
 	if err != nil {
+		span.RecordError(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 		return
@@ -42,6 +43,7 @@ func (e *EngineHandler) GetEngineById(w http.ResponseWriter, r *http.Request) {
 
 	body, err := json.Marshal(resp)
 	if err != nil {
+		span.RecordError(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 		return
@@ -53,6 +55,7 @@ func (e *EngineHandler) GetEngineById(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(body)
 
 	if err != nil {
+		span.RecordError(err)
 		log.Println("error writing response :", err)
 	}
 
@@ -66,18 +69,21 @@ func (e *EngineHandler) CreateEngine(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	var engineReq models.EngineRequest
 	if err := json.NewDecoder(r.Body).Decode(&engineReq); err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	createdEngine, err := e.service.CreateEngine(ctx, &engineReq)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	body, err := json.Marshal(createdEngine)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "Error marshalling  response", http.StatusInternalServerError)
 		return
 	}
@@ -86,6 +92,7 @@ func (e *EngineHandler) CreateEngine(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	_, err = w.Write(body)
 	if err != nil {
+		span.RecordError(err)
 		log.Println("Error writing response :", err)
 	}
 }
@@ -103,24 +110,28 @@ func (e *EngineHandler) UpdateEngine(w http.ResponseWriter, r *http.Request) {
 
 	var engineReq models.EngineRequest
 	if err := json.NewDecoder(r.Body).Decode(&engineReq); err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	engineID, err := uuid.Parse(id) // Capture both return values
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "Invalid ID format", http.StatusBadRequest) // Handle parsing error
 		return
 	}
 
 	updatedEngine, err := e.service.UpdateEngine(ctx, engineID, &engineReq)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	body, err := json.Marshal(updatedEngine)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "Error marshalling response", http.StatusInternalServerError)
 		return
 	}
@@ -129,6 +140,7 @@ func (e *EngineHandler) UpdateEngine(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(body)
 	if err != nil {
+		span.RecordError(err)
 		log.Println("Error writing response:", err)
 	}
 }
@@ -146,12 +158,14 @@ func (e *EngineHandler) DeleteEngine(w http.ResponseWriter, r *http.Request) {
 
 	deletedEngine, err := e.service.DeleteEngine(ctx, id)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	body, err := json.Marshal(deletedEngine)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "Error marshalling response", http.StatusInternalServerError)
 		return
 	}
@@ -160,6 +174,7 @@ func (e *EngineHandler) DeleteEngine(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(body)
 	if err != nil {
+		span.RecordError(err)
 		log.Println("Error writing response:", err)
 	}
 }

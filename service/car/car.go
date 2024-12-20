@@ -29,6 +29,7 @@ func (s *CarService) GetCarById(ctx context.Context, id string) (*models.Car, er
 	car, err := s.store.GetCarById(ctx, id)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -45,6 +46,7 @@ func (s *CarService) GetCarByBrand(ctx context.Context, brand string, isEngine b
 	cars, err := s.store.GetCarByBrand(ctx, brand, isEngine)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -59,11 +61,13 @@ func (s *CarService) CreateCar(ctx context.Context, car *models.CarRequest) (*mo
 	defer span.End()
 
 	if err := models.ValidateRequest(*car); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 	createdCar, err := s.store.CreateCar(ctx, car)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -78,12 +82,14 @@ func (s *CarService) UpdateCar(ctx context.Context, id uuid.UUID, carReq *models
 	defer span.End()
 
 	if err := models.ValidateRequest(*carReq); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	updatedcar, err := s.store.UpdateCar(ctx, id, carReq)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -100,6 +106,7 @@ func (s *CarService) DeleteCar(ctx context.Context, id string) (*models.Car, err
 	deletedCar, err := s.store.DeleteCar(ctx, id)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 

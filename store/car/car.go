@@ -60,6 +60,7 @@ func (s Store) GetCarById(ctx context.Context, id string) (models.Car, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
+			span.RecordError(err)
 			return car, nil
 		}
 		return car, err
@@ -92,18 +93,19 @@ func (s Store) GetCarByBrand(ctx context.Context, brand string, isEngine bool) (
 		LEFT JOIN 
 			engine e ON c.engine_id = e.engine_id 
 		WHERE 
-			c.brand = ?`
+			c.brand = $1`
 	} else {
 		query += ` 
 		FROM 
 			cars c 
 		WHERE 
-			c.brand = ?`
+			c.brand = $1`
 	}
 
 	// Execute the query
 	rows, err := s.db.QueryContext(ctx, query, brand)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -140,6 +142,7 @@ func (s Store) GetCarByBrand(ctx context.Context, brand string, isEngine bool) (
 		}
 
 		if err != nil {
+			span.RecordError(err)
 			return nil, err
 		}
 		cars = append(cars, car)
@@ -147,6 +150,7 @@ func (s Store) GetCarByBrand(ctx context.Context, brand string, isEngine bool) (
 
 	// Check for any errors encountered during iteration
 	if err = rows.Err(); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -166,6 +170,7 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 	err := s.db.QueryRowContext(ctx, "SELECT id from engine where id=$1", carReq.Engine.EngineID).Scan(&engineID)
 
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, sql.ErrNoRows) {
 			return car, errors.New("engine_id does not exist in the engine table")
 		}
@@ -177,12 +182,14 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 	tx, err := s.db.BeginTx(ctx, nil)
 
 	if err != nil {
+		span.RecordError(err)
 		return car, err
 	}
 
 	defer func() {
 		if err != nil {
 			tx.Rollback()
+			span.RecordError(err)
 			return
 		}
 		err = tx.Commit()
@@ -190,7 +197,7 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 
 	query := `
 	INSERT INTO cars (id, name, year, brand, fuel_type, engine_id, price, created_at, updated_at) 
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	// Get the current time for created_at and updated_at
 	now := time.Now()
@@ -199,6 +206,7 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 	result, err := tx.ExecContext(ctx, query, uuid.New(), carReq.Name, carReq.Year, carReq.Brand, carReq.FuelType, carReq.Engine.EngineID, carReq.Price, now, now)
 	if err != nil {
 		tx.Rollback()
+		span.RecordError(err)
 		return car, err
 	}
 
@@ -206,6 +214,7 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 	carID, err := result.LastInsertId()
 	if err != nil {
 		tx.Rollback()
+		span.RecordError(err)
 		return car, err
 	}
 
@@ -239,12 +248,14 @@ func (s Store) UpdateCar(ctx context.Context, id uuid.UUID, carReq *models.CarRe
 	// Begin Transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
 		return updatedCar, err
 	}
 
 	defer func() {
 		if err != nil {
 			tx.Rollback() // Rollback on error
+			span.RecordError(err)
 			return
 		}
 		err = tx.Commit() // Commit if no error
@@ -252,9 +263,9 @@ func (s Store) UpdateCar(ctx context.Context, id uuid.UUID, carReq *models.CarRe
 
 	// Prepare the SQL query to update the car
 	query := `
-		UPDATE cars 
-		SET name = ?, year = ?, brand = ?, fuel_type = ?, price = ?, updated_at = ? 
-		WHERE id = ?`
+    UPDATE cars 
+    SET name = $1, year = $2, brand = $3, fuel_type = $4, price = $5, updated_at = $6 
+    WHERE id = $7`
 
 	// Get the current time for updated_at
 	now := time.Now()
@@ -262,6 +273,7 @@ func (s Store) UpdateCar(ctx context.Context, id uuid.UUID, carReq *models.CarRe
 	// Execute the update query
 	_, err = tx.ExecContext(ctx, query, carReq.Name, carReq.Year, carReq.Brand, carReq.FuelType, carReq.Price, now, id)
 	if err != nil {
+		span.RecordError(err)
 		return updatedCar, err // Return error if the update fails
 	}
 
@@ -289,19 +301,21 @@ func (s Store) DeleteCar(ctx context.Context, id string) (models.Car, error) {
 	// Begin Transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
 		return deletedCar, err
 	}
 
 	defer func() {
 		if err != nil {
 			tx.Rollback() // Rollback on error
+			span.RecordError(err)
 			return
 		}
 		err = tx.Commit() // Commit if no error
 	}()
 
 	// Prepare the SQL query to select the car before deletion
-	selectQuery := `SELECT id, name, year, brand, fuel_type, price, created_at, updated_at FROM cars WHERE id = ?`
+	selectQuery := `SELECT id, name, year, brand, fuel_type, price, created_at, updated_at FROM cars WHERE id = $1`
 	err = tx.QueryRowContext(ctx, selectQuery, id).Scan(
 		&deletedCar.ID,
 		&deletedCar.Name,
@@ -315,15 +329,17 @@ func (s Store) DeleteCar(ctx context.Context, id string) (models.Car, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
+			span.RecordError(err)
 			return deletedCar, errors.New("car not found")
 		}
 		return deletedCar, err
 	}
 
 	// Prepare the SQL query to delete the car
-	deleteQuery := `DELETE FROM cars WHERE id = ?`
+	deleteQuery := `DELETE FROM cars WHERE id = $1`
 	result, err := tx.ExecContext(ctx, deleteQuery, id)
 	if err != nil {
+		span.RecordError(err)
 		return deletedCar, err // Return error if the deletion fails
 	}
 

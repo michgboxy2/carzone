@@ -37,6 +37,9 @@ func (h *CarHandler) GetCarById(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+
+		span.RecordError(err)
+
 		log.Println("Error : ", err)
 		return
 	}
@@ -44,6 +47,7 @@ func (h *CarHandler) GetCarById(w http.ResponseWriter, r *http.Request) {
 	body, err := json.Marshal(resp)
 
 	if err != nil {
+		span.RecordError(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println("Error : ", err)
 		return
@@ -56,6 +60,7 @@ func (h *CarHandler) GetCarById(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(body)
 
 	if err != nil {
+		span.RecordError(err)
 		log.Println("Error Writing Response: ", err)
 	}
 }
@@ -73,6 +78,7 @@ func (h *CarHandler) GetCarByBrand(w http.ResponseWriter, r *http.Request) {
 
 	cars, err := h.service.GetCarByBrand(ctx, brand, isEngine)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -90,12 +96,14 @@ func (h *CarHandler) CreateCar(w http.ResponseWriter, r *http.Request) {
 
 	var carReq models.CarRequest
 	if err := json.NewDecoder(r.Body).Decode(&carReq); err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	createdCar, err := h.service.CreateCar(ctx, &carReq)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -116,18 +124,21 @@ func (h *CarHandler) UpdateCar(w http.ResponseWriter, r *http.Request) {
 
 	var carReq models.CarRequest
 	if err := json.NewDecoder(r.Body).Decode(&carReq); err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	carID, err := uuid.Parse(id) // Capture both return values
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "Invalid ID format", http.StatusBadRequest) // Handle parsing error
 		return
 	}
 
 	updatedCar, err := h.service.UpdateCar(ctx, carID, &carReq)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -147,6 +158,7 @@ func (h *CarHandler) DeleteCar(w http.ResponseWriter, r *http.Request) {
 
 	deletedCar, err := h.service.DeleteCar(ctx, id)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

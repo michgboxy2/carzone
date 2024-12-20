@@ -31,16 +31,19 @@ func (s EngineStore) GetEngineById(ctx context.Context, id string) (models.Engin
 	// Begin Transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
 		return models.Engine{}, err
 	}
 
 	defer func() {
 		if err != nil {
+			span.RecordError(err)
 			if rbErr := tx.Rollback(); rbErr != nil {
 				fmt.Printf("Transaction rollback error: %v\n", rbErr)
 			}
 		} else {
 			if cmErr := tx.Commit(); cmErr != nil {
+				span.RecordError(err)
 				fmt.Printf("Transaction commit error: %v\v", cmErr)
 			}
 		}
@@ -53,7 +56,7 @@ func (s EngineStore) GetEngineById(ctx context.Context, id string) (models.Engin
 		FROM 
 			engine 
 		WHERE 
-			engine_id = ?`
+			engine_id = $1`
 
 	// Execute the query
 	err = tx.QueryRowContext(ctx, query, id).Scan(
@@ -64,6 +67,7 @@ func (s EngineStore) GetEngineById(ctx context.Context, id string) (models.Engin
 	)
 
 	if err != nil {
+		span.RecordError(err)
 		if err == sql.ErrNoRows {
 			return models.Engine{}, errors.New("engine not found")
 		}
@@ -72,6 +76,7 @@ func (s EngineStore) GetEngineById(ctx context.Context, id string) (models.Engin
 
 	// Commit the transaction (optional for read operations)
 	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
 		return models.Engine{}, err
 	}
 
@@ -89,16 +94,19 @@ func (s EngineStore) CreateEngine(ctx context.Context, engineReq *models.EngineR
 	// Begin Transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
 		return engine, err
 	}
 
 	defer func() {
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
+				span.RecordError(err)
 				fmt.Printf("Transaction rollback error: %v\n", rbErr)
 			}
 		} else {
 			if cmErr := tx.Commit(); cmErr != nil {
+				span.RecordError(err)
 				fmt.Printf("Transaction commit error: %v\v", cmErr)
 			}
 		}
@@ -109,11 +117,12 @@ func (s EngineStore) CreateEngine(ctx context.Context, engineReq *models.EngineR
 	// Prepare the SQL query to insert a new engine
 	query := `
 		INSERT INTO engine (id, displacement, no_of_cylinders, car_range) 
-		VALUES (?, ?, ?, ?)`
+		VALUES ($1, $2, $3, $4)`
 
 	// Execute the insert query
 	_, err = tx.ExecContext(ctx, query, engineId, engineReq.Displacement, engineReq.NoOfCylinders, engineReq.CarRange)
 	if err != nil {
+		span.RecordError(err)
 		return engine, err // Return error if the insertion fails
 	}
 
@@ -137,12 +146,14 @@ func (s EngineStore) EngineUpdate(ctx context.Context, id uuid.UUID, engineReq *
 	// Begin Transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
 		return updatedEngine, err
 	}
 
 	defer func() {
 		if err != nil {
 			tx.Rollback() // Rollback on error
+			span.RecordError(err)
 			return
 		}
 		err = tx.Commit() // Commit if no error
@@ -151,12 +162,13 @@ func (s EngineStore) EngineUpdate(ctx context.Context, id uuid.UUID, engineReq *
 	// Prepare the SQL query to update the engine
 	query := `
 		UPDATE engine 
-		SET displacement = ?, no_of_cylinders = ?, car_range = ? 
-		WHERE engine_id = ?`
+		SET displacement = $1, no_of_cylinders = $2, car_range = $3 
+		WHERE engine_id = $4`
 
 	// Execute the update query
 	_, err = tx.ExecContext(ctx, query, engineReq.Displacement, engineReq.NoOfCylinders, engineReq.CarRange, id)
 	if err != nil {
+		span.RecordError(err)
 		return updatedEngine, err // Return error if the update fails
 	}
 
@@ -181,19 +193,21 @@ func (s EngineStore) EngineDelete(ctx context.Context, id string) (models.Engine
 	// Begin Transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
 		return deletedEngine, err
 	}
 
 	defer func() {
 		if err != nil {
 			tx.Rollback() // Rollback on error
+			span.RecordError(err)
 			return
 		}
 		err = tx.Commit() // Commit if no error
 	}()
 
 	// Prepare the SQL query to select the engine before deletion
-	selectQuery := `SELECT engine_id, displacement, no_of_cylinders, car_range FROM engine WHERE engine_id = ?`
+	selectQuery := `SELECT engine_id, displacement, no_of_cylinders, car_range FROM engine WHERE engine_id = $1`
 	err = tx.QueryRowContext(ctx, selectQuery, id).Scan(
 		&deletedEngine.EngineID,
 		&deletedEngine.Displacement,
@@ -209,9 +223,10 @@ func (s EngineStore) EngineDelete(ctx context.Context, id string) (models.Engine
 	}
 
 	// Prepare the SQL query to delete the engine
-	deleteQuery := `DELETE FROM engine WHERE engine_id = ?`
+	deleteQuery := `DELETE FROM engine WHERE engine_id = $1`
 	_, err = tx.ExecContext(ctx, deleteQuery, id)
 	if err != nil {
+		span.RecordError(err)
 		return deletedEngine, err // Return error if the deletion fails
 	}
 

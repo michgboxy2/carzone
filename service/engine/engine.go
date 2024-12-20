@@ -29,6 +29,7 @@ func (s *EngineService) GetEngineById(ctx context.Context, id string) (*models.E
 	engine, err := s.store.GetEngineById(ctx, id)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -43,12 +44,14 @@ func (s *EngineService) CreateEngine(ctx context.Context, engineReq *models.Engi
 	defer span.End()
 
 	if err := models.ValidateEngineRequest(*engineReq); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	createdEngine, err := s.store.CreateEngine(ctx, engineReq)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -62,12 +65,14 @@ func (s *EngineService) UpdateEngine(ctx context.Context, id uuid.UUID, engineRe
 
 	defer span.End()
 	if err := models.ValidateEngineRequest(*engineReq); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	updatedEngine, err := s.store.EngineUpdate(ctx, id, engineReq)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -84,6 +89,7 @@ func (s *EngineService) DeleteEngine(ctx context.Context, id string) (*models.En
 	deletedEngine, err := s.store.EngineDelete(ctx, id)
 
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
